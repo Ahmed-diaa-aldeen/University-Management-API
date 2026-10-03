@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
+using api1.Repository;
 
 namespace api1.Models
 {
@@ -9,6 +10,7 @@ namespace api1.Models
     [ApiController]
     public class stuValuesController : ControllerBase
     {
+        studentRepository rep;
         MVCContext db;
         public stuValuesController(MVCContext db)
         {
