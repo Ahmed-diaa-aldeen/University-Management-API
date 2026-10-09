@@ -1,6 +1,12 @@
-﻿using api1.Models;
+﻿using System.Text;
+using api1.Models;
 using api1.Repository;
+using api1.Repository.Generic;
+using api1.Repository.UnitOfWork;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 
 namespace api1
 {
@@ -8,42 +14,87 @@ namespace api1
     {
         public static void Main(string[] args)
         {
-            string txt="";
+            string corsPolicyName = "AllowAll";
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
+            // 1. Add services to the container.
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
-            // تسجيل الـ Repository ليكون متاح للحقن في الـ Controllers
+
+            // 2. Swagger Configuration with JWT Support
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.SwaggerDoc("v1", new OpenApiInfo { Title = "University API", Version = "v1" });
+
+                options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "Bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "ألصق الـ Token المباشر الناتج من عملية تسجيل الدخول مباشرة بدون كتابة كلمة Bearer."
+                });
+
+                options.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        Array.Empty<string>()
+                    }
+                });
+            });
+
+            // 3. Register DbContext using Configuration String
+            builder.Services.AddDbContext<MVCContext>(options =>
+                options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+            // 4. Register JWT Authentication
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                    ValidAudience = builder.Configuration["Jwt:Audience"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+                };
+            });
+
+            builder.Services.AddAuthorization();
+
+            // 5. Register Repositories and UnitOfWork
+            builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
             builder.Services.AddScoped<studentRepository>();
 
-            // ????? ??? DbContext ?????? ??????? ??? ????? ???? ????
-            builder.Services.AddDbContext<MVCContext>(options =>
-                options.UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=StudentDB;Trusted_Connection=True;TrustServerCertificate=True;"));
-
+            // 6. CORS Policy Setup
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy(txt,
-                    builder =>
+                options.AddPolicy(corsPolicyName, policy =>
                 {
-                    builder.AllowAnyOrigin()
-                           .AllowAnyMethod()
-                           .AllowAnyHeader();
+                    policy.AllowAnyOrigin()
+                          .AllowAnyMethod()
+                          .AllowAnyHeader();
                 });
-            }
-                );
-
+            });
 
             var app = builder.Build();
-            
-
-            // السطر التالي يتأكد من إنشاء قاعدة البيانات والجدول تلقائياً إذا لم تكن موجودة
-            using (var scope = app.Services.CreateScope())
-            {
-                var dbContext = scope.ServiceProvider.GetRequiredService<MVCContext>();
-                dbContext.Database.EnsureCreated();
-            }
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
@@ -54,8 +105,12 @@ namespace api1
 
             app.UseHttpsRedirection();
 
+            app.UseCors(corsPolicyName);
+
+            app.UseAuthentication();
+            app.UseStaticFiles();
             app.UseAuthorization();
-            app.UseCors(txt);    
+
             app.MapControllers();
 
             app.Run();

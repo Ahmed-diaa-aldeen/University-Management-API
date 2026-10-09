@@ -1,0 +1,12 @@
+## Visual Studio Build Outputs
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Uploads Folder
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/.gitkeep

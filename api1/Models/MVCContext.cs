@@ -1,41 +1,41 @@
-﻿#nullable disable
-using System;
-using System.Collections.Generic;
-using Microsoft.EntityFrameworkCore;
-using api1.Models;
+﻿using Microsoft.EntityFrameworkCore;
 
-namespace api1.Models;
-
-public partial class MVCContext : DbContext
+namespace api1.Models
 {
-    public MVCContext()
+    public class MVCContext : DbContext
     {
-    }
+        public MVCContext(DbContextOptions<MVCContext> options) : base(options) { }
 
-    public MVCContext(DbContextOptions<MVCContext> options)
-        : base(options)
-    {
-    }
+        public DbSet<Student> Students { get; set; }
 
-    public virtual DbSet<Student> Student { get; set; }
+        // خاصية برمجية فقط لتلبية استدعاءات db.Student القديمة بدون إنشاء جدول جديد
+        public DbSet<Student> Student => Students;
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        if (!optionsBuilder.IsConfigured)
+        public DbSet<Course> Courses { get; set; }
+        public DbSet<Enrollment> Enrollments { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=StudentDB;Trusted_Connection=True;TrustServerCertificate=True;");
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder.UseSqlServer("Server=WINDOWS-PUC813S\\SQLEXPRESS;Database=UniversityDB_FinalFix;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true");
+            }
+        }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            // إجبار EF Core على ربط الكيان بجدول Students الوحيد لتجنب خطأ التكرار
+            modelBuilder.Entity<Student>().ToTable("Students");
+
+            modelBuilder.Entity<Enrollment>()
+                .HasOne(e => e.Student)
+                .WithMany(s => s.Enrollments)
+                .HasForeignKey(e => e.StudentId);
+
+            modelBuilder.Entity<Enrollment>()
+                .HasOne(e => e.Course)
+                .WithMany(c => c.Enrollments)
+                .HasForeignKey(e => e.CourseId);
         }
     }
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<Student>().ToTable("Student");
-
-        // تحديد اسم الكلاس بالكامل يمنع الخطأ تماماً
-        modelBuilder.Entity<Student>().HasData(api1.Models.Student.GetSampleStudents());
-
-        OnModelCreatingPartial(modelBuilder);
-    }
-
-    partial void OnModelCreatingPartial(ModelBuilder modelBuilder);
 }
