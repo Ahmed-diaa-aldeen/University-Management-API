@@ -94,6 +94,7 @@ namespace api1
                 });
             });
 
+            // بناء التطبيق بعد تسجيل كل الخدمات
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -104,11 +105,12 @@ namespace api1
             }
 
             app.UseHttpsRedirection();
+            app.UseStaticFiles();
 
+            // تفعيل الـ CORS قبل الـ Authentication والـ Authorization
             app.UseCors(corsPolicyName);
 
             app.UseAuthentication();
-            app.UseStaticFiles();
             app.UseAuthorization();
 
             app.MapControllers();

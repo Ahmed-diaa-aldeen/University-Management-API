@@ -1,4 +1,4 @@
-namespace api1.DTOS
+﻿namespace api1.DTOS
 {
     public class StudentDetailsDto
     {
@@ -13,6 +13,6 @@ namespace api1.DTOS
     {
         public string CourseTitle { get; set; } = string.Empty;
         public int CreditHours { get; set; }
-        public double Grade { get; set; }
+        public string Grade { get; set; } = "N/A"; // تعديل النوع إلى string
     }
 }

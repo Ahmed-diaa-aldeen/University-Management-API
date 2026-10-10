@@ -45,12 +45,12 @@ namespace api1.Repository.UnitOfWork
                 {
                     CourseTitle = e.Course != null ? e.Course.Title : "غير محدد",
                     CreditHours = e.Course != null ? e.Course.CreditHours : 0,
-                    Grade = e.Grade
+                    Grade = e.Grade // التقدير الحرفي مثل A, B, C
                 }).ToList()
             };
         }
 
-        // تسجيل طالب في مادة وتحديث الـ GPA
+        // تسجيل طالب في مادة (بـ 3 معاملات متوافقة تماماً مع الـ IUnitOfWork)
         public async Task<bool> EnrollStudentInCourseAsync(int studentId, int courseId, double grade)
         {
             var student = await _context.Students.FindAsync(studentId);
@@ -62,13 +62,17 @@ namespace api1.Repository.UnitOfWork
             {
                 StudentId = studentId,
                 CourseId = courseId,
-                Grade = grade
+                MidtermScore = grade, // تخزين الدرجة كدرجة أساسية
+                FinalScore = 0,
+                Grade = CalculateGradeLetter(grade) // تحويل الدرجة لتقدير حرفي تلقائياً
             };
+
             await Enrollments.AddAsync(enrollment);
             await _context.SaveChangesAsync();
 
             student.GPA = await CalculateGPAAsync(studentId);
             _context.Students.Update(student);
+            await _context.SaveChangesAsync();
 
             return true;
         }
@@ -90,6 +94,7 @@ namespace api1.Repository.UnitOfWork
             {
                 student.GPA = await CalculateGPAAsync(studentId);
                 _context.Students.Update(student);
+                await _context.SaveChangesAsync();
             }
 
             return true;
@@ -113,16 +118,16 @@ namespace api1.Repository.UnitOfWork
 
             if (course == null) return null;
 
-            var grades = course.Enrollments.Select(e => e.Grade).ToList();
+            var scores = course.Enrollments.Select(e => e.TotalScore).ToList();
 
             return new CourseStatsDto
             {
                 CourseId = course.Id,
                 CourseTitle = course.Title,
-                TotalEnrolledStudents = grades.Count,
-                AverageGrade = grades.Any() ? Math.Round(grades.Average(), 2) : 0,
-                MaxGrade = grades.Any() ? grades.Max() : 0,
-                MinGrade = grades.Any() ? grades.Min() : 0
+                TotalEnrolledStudents = scores.Count,
+                AverageGrade = scores.Any() ? Math.Round(scores.Average(), 2) : 0,
+                MaxGrade = scores.Any() ? scores.Max() : 0,
+                MinGrade = scores.Any() ? scores.Min() : 0
             };
         }
 
@@ -141,7 +146,7 @@ namespace api1.Repository.UnitOfWork
 
             foreach (var item in enrollments)
             {
-                double points = ConvertGradeTo4PointScale(item.Grade);
+                double points = ConvertGradeTo4PointScale(item.TotalScore);
                 totalPoints += points * item.Course!.CreditHours;
                 totalHours += item.Course.CreditHours;
             }
@@ -159,6 +164,18 @@ namespace api1.Repository.UnitOfWork
             if (percentage >= 65) return 2.4;
             if (percentage >= 60) return 2.0;
             return 0.0;
+        }
+
+        private string CalculateGradeLetter(double percentage)
+        {
+            if (percentage >= 90) return "A+";
+            if (percentage >= 85) return "A";
+            if (percentage >= 80) return "B+";
+            if (percentage >= 75) return "B";
+            if (percentage >= 70) return "C+";
+            if (percentage >= 65) return "C";
+            if (percentage >= 60) return "D";
+            return "F";
         }
 
         public async Task<int> CompleteAsync() => await _context.SaveChangesAsync();
